@@ -2,29 +2,102 @@
 title: "p8105_hw6_yw3095"
 author: "Yixuan Wang"
 date: "November 17, 2018"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stats)
+library(purrr)
 ```
 
-## R Markdown
+##Problem 1
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This problem focuses on homicides in 50 large U.S. cities.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+raw_data = read_csv(file = "./data/homicide-data.csv") %>% 
+  janitor::clean_names() 
 
-```{r cars}
-summary(cars)
+homicide = raw_data %>%  
+  mutate(city_state = paste(city, state, sep = ", "),
+         resolved = as.numeric(disposition == "Closed by arrest"),
+         victim_age = as.numeric(victim_age),
+         victim_race = ifelse(victim_race == "White", 
+c("white"), c("non-white")),
+         victim_race = fct_relevel(victim_race, "White")) %>% 
+  select(resolved, victim_age, victim_race, victim_sex, city_state) %>% 
+  filter(!city_state %in% c("Dallas, TX", "Phoenix, AZ", "Kansas City, MO", "Tulsa, AL"))
 ```
 
-## Including Plots
+```{r}
+bal_fit_logistic = homicide %>% 
+  filter(city_state == "Baltimore, MD") %>% 
+  glm(resolved ~ victim_age + victim_race + victim_sex, data = ., family = binomial()) 
 
-You can also embed plots, for example:
+save(bal_fit_logistic,file = "bal_fit_logistic.RData") 
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+bal_fit_logistic %>% 
+  broom::tidy() %>% 
+    janitor::clean_names() %>% 
+    mutate(OR = exp(estimate),
+           conf_low = exp(estimate - 1.96*std_error),
+           conf_high = exp(estimate + 1.96*std_error)) %>% 
+    select(term, OR, conf_low, conf_high) %>% 
+    filter(term == "victim_racewhite") %>% 
+    knitr::kable(digits = 3) 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+fit_logistic = function(x){
+  city_fit_logistic = 
+    homicide %>% 
+    filter(city_state == x) %>% 
+    glm(resolved ~ victim_age + victim_race + victim_sex, family = binomial()) %>%  
+    broom::tidy() %>% 
+    janitor::clean_names() %>% 
+    mutate(OR = exp(estimate),
+           conf_low = exp(estimate - 1.96*std_error),
+           conf_high = exp(estimate + 1.96*std_error)) %>% 
+    select(term, OR, conf_low, conf_high) %>% 
+    filter(term == "victim_racewhite") %>% 
+    knitr::kable(digits = 3) 
+}
+
+city_model = 
+  tibble(city_state = homicide$city_state) %>% 
+  mutate(map(.x = homicide$city_state, ~fit_logistic(.x))) %>% 
+  unnest 
+```
+```{r}
+city_plot = city_model %>% 
+  ggplot(aes(x = reorder(city_state, OR), y = OR, colour = city_state)) + 
+  geom_point() +
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high), width = 0.8) +
+  labs(
+    title = "The adjusted odds ratio (and CI) for solving homicides comparing non-white victims to white victims for each city",
+    x = "Location",
+    y = "The adjusted odds ratio and CI",
+    color = "Location"
+  ) + 
+  theme(legend.position = "right", axis.text.x = element_text(angle = 90))
+
+city_plot
+```
+
+##Problem 2
+
+In this problem, we tried to understand the effects of several variables on a child’s birthweight.
+
+```{r}
+birthweight = read_csv(file = "./data/birthweight.csv") %>%
+  janitor::clean_names()  
+
+skimr::skim(birthweight)
+
+birthweight = birthweight %>% 
+
+```
+
+
