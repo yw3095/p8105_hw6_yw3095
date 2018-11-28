@@ -51,23 +51,21 @@ bal_fit_logistic %>%
 
 ```{r}
 fit_logistic = function(x){
-  city_fit_logistic = 
     homicide %>% 
     filter(city_state == x) %>% 
-    glm(resolved ~ victim_age + victim_race + victim_sex, family = binomial()) %>%  
+    glm(resolved ~ victim_age + victim_race + victim_sex, data = ., family = binomial()) %>%  
     broom::tidy() %>% 
     janitor::clean_names() %>% 
     mutate(OR = exp(estimate),
            conf_low = exp(estimate - 1.96*std_error),
            conf_high = exp(estimate + 1.96*std_error)) %>% 
     select(term, OR, conf_low, conf_high) %>% 
-    filter(term == "victim_racewhite") %>% 
-    knitr::kable(digits = 3) 
+    filter(term == "victim_racewhite") 
 }
 
 city_model = 
-  tibble(city_state = homicide$city_state) %>% 
-  mutate(map(.x = homicide$city_state, ~fit_logistic(.x))) %>% 
+  tibble(city_state = unique(homicide$city_state)) %>% 
+  mutate(map(.x = unique(homicide$city_state), ~fit_logistic(.x))) %>% 
   unnest 
 ```
 ```{r}
@@ -94,9 +92,13 @@ In this problem, we tried to understand the effects of several variables on a ch
 birthweight = read_csv(file = "./data/birthweight.csv") %>%
   janitor::clean_names()  
 
-skimr::skim(birthweight)
-
 birthweight = birthweight %>% 
+  mutate(babysex = as.factor(babysex),
+         frace = as.factor(frace),
+         malform = as.factor(malform),
+         mrace = as.factor(mrace))
+
+skimr::skim(birthweight)
 
 ```
 
